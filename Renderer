@@ -1,0 +1,44 @@
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class Renderer : MonoBehaviour
+{
+
+    public static void RenderAllTrees(ForestFire forestFire, Material nonBurningTree, Material burningTree, Material deadTree, Vector2 showMorePos)
+    {
+        foreach (Tree treeBeingRendered in forestFire.listOfTrees)
+        {
+            GameObject treeRenderObject = GameObject.CreatePrimitive(PrimitiveType.Plane);
+            treeRenderObject.transform.position = treeBeingRendered.position.Vector2 + showMorePos;
+            treeRenderObject.transform.localRotation = Quaternion.Euler(-90, 0, 0);
+            treeRenderObject.transform.localScale = new Vector3(0.1f, 0.1f, 0.1f);
+            MeshRenderer treeRenderObjectMeshRenderer = treeRenderObject.GetComponent<MeshRenderer>();
+            if (treeBeingRendered.dead)
+            {
+                treeRenderObjectMeshRenderer.material = deadTree;
+            }
+            else if (treeBeingRendered.burning)
+            {
+                treeRenderObjectMeshRenderer.material = burningTree;
+            }
+            else
+            {
+                treeRenderObjectMeshRenderer.material = nonBurningTree;
+            }
+            treeRenderObject.tag = "TreeObject";
+            treeRenderObject.name = (treeBeingRendered.treeId).ToString();
+        }
+    }
+
+    public static void DeleteAllRenders()
+    {
+        GameObject[] toDestoyTrees;
+        toDestoyTrees = GameObject.FindGameObjectsWithTag("TreeObject");
+
+        foreach (GameObject tree in toDestoyTrees)
+        {
+            DestroyImmediate(tree);
+        }
+    }
+}
