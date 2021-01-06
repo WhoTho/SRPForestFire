@@ -1,0 +1,138 @@
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using System.Runtime.Serialization.Formatters.Binary;
+using System.IO;
+
+[System.Serializable]
+public struct Tree
+{
+    public int treeId;
+    public float densityOfTree;
+    public SerializableVector position;
+    public bool burning;
+    public float maxBurnPoint;
+    public float tempuarture;
+    public bool dead;
+    public float burnChance;
+    public float burnDistance;
+    public List<int> nextToTreesId;
+    public List<float> nextToTreesDistance;
+
+
+    public void GenerateTreeValues(int id, float dot, Vector2 pos, float mbp)
+    {
+        this.treeId = id;
+        this.densityOfTree = dot;
+        this.position = new SerializableVector(pos);
+        this.burning = false;
+        this.maxBurnPoint = mbp;
+        this.tempuarture = 1f;
+        this.dead = false;
+        this.burnChance = 0f;
+        this.burnDistance = 4f;
+        this.nextToTreesId = new List<int>();
+        this.nextToTreesDistance = new List<float>();
+    }
+
+    void SetPosition(float x1, float y1)
+    {
+        this.position = new SerializableVector(x1, y1);
+    }
+
+    void SetPosition(Vector2 p2)
+    {
+        this.position = new SerializableVector(p2);
+    }
+
+    public void PrintValues()
+    {
+        Debug.Log(this.densityOfTree);
+        Debug.Log(this.position);
+        Debug.Log(this.burning);
+        Debug.Log(this.maxBurnPoint);
+        Debug.Log(this.tempuarture);
+        Debug.Log(this.dead);
+        Debug.Log(this.nextToTreesId.Count);
+        Debug.Log(this.burnChance);
+        Debug.Log(this.burnDistance);
+    }
+
+    public void PrintNextTo()
+    {
+        for (int i = 0; i < this.nextToTreesId.Count; i++)
+        {
+            Debug.Log(this.nextToTreesId[i]);
+        }
+    }
+
+    public void GenerateTreesNextTo(int numberOfTrees, float maxBurnDistance, List<Tree> listOfTrees)
+    {
+        for (int i = 0; i < numberOfTrees; i++)
+        {
+            Tree treeTestingDistance = listOfTrees[i];
+            float distanceFromOtherTree = Functions.SquaredDistance(this.position.Vector2, treeTestingDistance.position.Vector2);
+            if (distanceFromOtherTree < maxBurnDistance * maxBurnDistance + 98 && i != treeId)
+            {
+                this.nextToTreesId.Add(i);
+                this.nextToTreesDistance.Add(distanceFromOtherTree);
+            }
+        }
+    }
+
+    public void RecalculateDistance(Vector2 pos, List<Tree> listOfTrees)
+    {
+        this.nextToTreesDistance.Clear();
+        for (int i = 0; i < this.nextToTreesId.Count; i++)
+        {
+            Tree treeTestingDistance = listOfTrees[this.nextToTreesId[i]];
+            float distanceFromOtherTree = Functions.SquaredDistance(pos, treeTestingDistance.position.Vector2);
+            this.nextToTreesDistance.Add(distanceFromOtherTree);
+        }
+    }
+
+    public List<Tree> BurnStep(List<Tree> listOfTrees)
+    {
+        if (this.nextToTreesId.Count != 0)
+        {
+            for (int i = this.nextToTreesId.Count - 1; i >= 0; i--)
+            {
+                Tree treeTesting = listOfTrees[this.nextToTreesId[i]];
+                float distanceFromBurning = this.nextToTreesDistance[i];
+                if (!treeTesting.dead && !treeTesting.burning)
+                {
+                    if (treeTesting.CanBurn(distanceFromBurning, this.burnDistance))
+                    {
+                        float distanceProbability = (distanceFromBurning + 0.01f) / (this.burnDistance * this.burnDistance);
+                        treeTesting.burnChance += distanceProbability * distanceProbability;
+                    }
+                    listOfTrees[this.nextToTreesId[i]] = treeTesting;
+                }
+                else
+                {
+                    this.nextToTreesId.RemoveAt(i);
+                    this.nextToTreesDistance.RemoveAt(i);
+                }
+            }
+        }
+        else
+        {
+            Tree treeTesting = listOfTrees[this.treeId];
+            treeTesting.dead = true;
+            listOfTrees[treeId] = treeTesting;
+        }
+        return listOfTrees;
+    }
+
+    public bool CanBurn(float distanceToBurning, float bd)
+    {
+        return (
+            distanceToBurning < bd * bd
+        );
+    }
+
+    public void WindOnFireProbability()
+    {
+        //tttttt
+    }
+}
