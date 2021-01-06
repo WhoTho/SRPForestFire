@@ -1,0 +1,217 @@
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using System;
+using System.Runtime.Serialization.Formatters.Binary;
+using System.IO;
+
+[System.Serializable]
+public struct ForestFire
+{
+    public int frame;
+    public int id;
+    public int creatureId;
+    public int numberOfTreesOnFire;
+    public int previousNumberOfTreesOnFire;
+    public bool programRunning;
+    public int numberOfTrees;
+    public float maxBurnDistance;
+    public List<Tree> listOfTrees;
+    public List<int> listOfAliveTreesIds;
+    public SerializableVector wind;
+    public SerializableVector previousWind;
+
+    public void ResetAll(int NumberOfTrees, int seed)
+    {
+        this.numberOfTrees = NumberOfTrees;
+        this.creatureId = 0;
+        this.frame = 0;
+        this.listOfTrees = new List<Tree>();
+        this.listOfAliveTreesIds = new List<int>();
+        this.previousNumberOfTreesOnFire = 0;
+        this.wind = new SerializableVector(0, 0);
+        this.previousWind = new SerializableVector(this.wind.x, this.wind.y);
+        GenerateTreeList(seed);
+        GenerateProximityTreeLists();
+        // Renderer.RenderAllTrees(notBurningTree, burningTree, deadTree);
+        //listOfTrees[0].Debug.LogValues();
+        //Debug.Log("___");
+    }
+
+    public void RandomizeWind()
+    {
+        this.wind.Random(-MitigationGA.windConstraint, MitigationGA.windConstraint, -MitigationGA.windConstraint, MitigationGA.windConstraint);
+    }
+
+    public ForestFire ShallowClone()
+    {
+        return (ForestFire)this.MemberwiseClone();
+    }
+
+    public ForestFire Clone()
+    {
+        ForestFire ff = new ForestFire();
+        ff.frame = this.frame;
+        ff.id = this.id;
+        ff.numberOfTreesOnFire = this.numberOfTreesOnFire;
+        ff.previousNumberOfTreesOnFire = this.previousNumberOfTreesOnFire;
+        ff.programRunning = this.programRunning;
+        ff.numberOfTrees = this.numberOfTrees;
+        ff.maxBurnDistance = this.maxBurnDistance;
+        ff.listOfTrees = new List<Tree>();
+        for (int i = 0; i < this.numberOfTrees; i++)
+        {
+            Tree temp = new Tree();
+            temp.GenerateTreeValues(this.listOfTrees[i].treeId, this.listOfTrees[i].densityOfTree, this.listOfTrees[i].position.Vector2, this.listOfTrees[i].maxBurnPoint);
+            if (i == 0)
+            {
+                temp.burning = true;
+            }
+            ff.listOfTrees.Add(temp);
+        }
+        ff.GenerateProximityTreeLists();
+        //ff.listOfTrees = this.listOfTrees;
+        // ff.listOfAliveTreesIds = this.listOfAliveTreesIds;
+        ff.listOfAliveTreesIds = new List<int>();
+        for (int i = 0; i < this.numberOfTrees; i++)
+        {
+            int temp = this.listOfAliveTreesIds[i];
+            ff.listOfAliveTreesIds.Add(temp);
+        }
+        ff.wind = this.wind;
+        ff.previousWind = this.previousWind;
+
+        return ff;
+    }
+
+    public void SetValues(int frame_, int id_, bool programRunning_, int numberOfTrees_, float maxBurnDistance_, List<Tree> listOfTrees_, List<int> listOfAliveTreesIds_, Vector2 wind_)
+    {
+        this.frame = frame_;
+        this.id = id_;
+        this.programRunning = programRunning_;
+        this.numberOfTrees = numberOfTrees_;
+        this.maxBurnDistance = maxBurnDistance_;
+        this.listOfTrees = listOfTrees_;
+        this.listOfAliveTreesIds = listOfAliveTreesIds_;
+        this.wind = new SerializableVector(wind_);
+    }
+
+    public void RunSimulation()
+    {
+        this.programRunning = true;
+        while (this.programRunning)
+        {
+            NextStep();
+        }
+    }
+
+    public void StartBurn()
+    {
+        int j = 0;
+        while (j < 50)
+        {
+            int i = Functions.randomInt(0, this.numberOfTrees);
+            Tree treeBeingChecked = this.listOfTrees[i];
+            if (!treeBeingChecked.dead)
+            {
+                treeBeingChecked.burning = true;
+                this.listOfTrees[i] = treeBeingChecked;
+                break;
+            }
+            j++;
+        }
+
+        if (j == 50)
+        {
+            Tree treeBeingChecked = this.listOfTrees[0];
+            treeBeingChecked.burning = true;
+            this.listOfTrees[0] = treeBeingChecked;
+        }
+    }
+
+    void GenerateTreeList(int seed)
+    {
+        UnityEngine.Random.InitState(seed);
+        for (int i = 0; i < this.numberOfTrees; i++)
+        {
+            SerializableVector pos = new SerializableVector(UnityEngine.Random.Range(0f, (float)MitigationGA.forestFireSize), UnityEngine.Random.Range(0f, (float)MitigationGA.forestFireSize));
+            float dot = UnityEngine.Random.Range(5f, 10f);
+            float mbp = UnityEngine.Random.Range(10f, 20f);
+            Tree temp = new Tree();
+            temp.GenerateTreeValues(i, dot, pos.Vector2, mbp);
+            this.listOfTrees.Add(temp);
+            this.listOfAliveTreesIds.Add(i);
+
+            //temp.Debug.LogValues();
+        }
+    }
+
+    void GenerateProximityTreeLists()
+    {
+        for (int i = 0; i < this.numberOfTrees; i++)
+        {
+            Tree treeTesting = listOfTrees[i];
+            treeTesting.GenerateTreesNextTo(this.numberOfTrees, this.maxBurnDistance, this.listOfTrees);
+
+        }
+    }
+
+    public void NextStep()
+    {
+        this.frame++;
+        if (this.frame % 5 == 0 && this.programRunning)
+        {
+            if (this.previousNumberOfTreesOnFire == this.numberOfTreesOnFire)
+            {
+                this.programRunning = false;
+                if (!MitigationGA.loading)
+                {
+                    MitigationGA.listOfCreatures[this.creatureId].listOfForestFires[this.id] = this;
+                }
+            }
+            this.previousNumberOfTreesOnFire = this.numberOfTreesOnFire;
+        }
+
+        this.wind.x = Mathf.Clamp(this.wind.x, -MitigationGA.windConstraint, MitigationGA.windConstraint);
+        this.wind.y = Mathf.Clamp(this.wind.y, -MitigationGA.windConstraint, MitigationGA.windConstraint);
+
+        this.numberOfTreesOnFire = 0;
+
+        for (int x = this.listOfAliveTreesIds.Count - 1; x >= 0; x--)
+        {
+
+            int i = this.listOfAliveTreesIds[x];
+            Tree treeBeingChecked = this.listOfTrees[i];
+
+            if (this.wind != this.previousWind)
+            {
+                treeBeingChecked.RecalculateDistance(treeBeingChecked.position.Vector2 + this.wind.Vector2, this.listOfTrees);
+            }
+
+            if (treeBeingChecked.dead)
+            {
+                this.listOfAliveTreesIds.Remove(i);
+                this.numberOfTreesOnFire++;
+            }
+            else if (treeBeingChecked.burning)
+            {
+                //ThreadPool.QueueUserWorkItem(new WaitCallback(treeBeingChecked.BurnStep), this.listOfTrees);
+                treeBeingChecked.BurnStep(this.listOfTrees);
+                this.numberOfTreesOnFire++;
+            }
+
+        }
+
+        for (int i = this.listOfAliveTreesIds.Count - 1; i >= 0; i--)
+        {
+            Tree treeBeingChecked = this.listOfTrees[this.listOfAliveTreesIds[i]];
+            if (treeBeingChecked.burnChance > Functions.random(0, 20))
+            {
+                treeBeingChecked.burnChance = 0f;
+                treeBeingChecked.burning = true;
+            }
+            this.listOfTrees[this.listOfAliveTreesIds[i]] = treeBeingChecked;
+        }
+        this.previousWind = new SerializableVector(this.wind.x, this.wind.y);
+    }
+}
