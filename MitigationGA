@@ -1,0 +1,165 @@
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using System.Linq;
+
+public class MitigationGA : MonoBehaviour
+{
+
+    public Material nonBurningTree;
+    public Material burningTree;
+    public Material deadTree;
+    public static ForestFire forestFire = new ForestFire();
+    public static List<CreatureGA> listOfCreatures = new List<CreatureGA>();
+    public static List<List<int>> listOfGenes = new List<List<int>>();
+    public const int numberOfCreaturesPerGeneration = 64; //MULTIPLE OF 4
+    public const int forestFiresPerCreature = 10;
+    public const int numberOfTreesPerForest = 1000;
+    public const int forestFireSize = 75;
+    public static float maxBurnDistance;
+    public const float windConstraint = 1.5f;
+    public static int forestFiresLoaded = 0;
+    public const int mutationRate = 10; //1 out of x
+    public const int mutationRepetition = 3;
+    public static int generationNumber;
+    public static int seed = 5342;
+    public int lst;
+    public static bool loading = false;
+    //public static int ENDHOUR = 6;
+    public static int ENDMIN = 10;
+    //public static object locker;
+
+
+    void Start()
+    {
+        RunGA();
+        StartCoroutine("RuntimeGA");
+    }
+
+    public void RunGA()
+    {
+        Renderer.DeleteAllRenders();
+        generationNumber = 0;
+        forestFire.ResetAll(numberOfTreesPerForest, seed);
+        CreateGenes(numberOfCreaturesPerGeneration);
+        CreateCretures();
+        // for (int i = 0; i < numberOfCreaturesPerGeneration; i++)
+        // {
+        //     listOfCreatures[i].Render(nonBurningTree, burningTree, deadTree, i);
+        // }
+    }
+
+    public IEnumerator RuntimeGA()
+    {
+        while ((System.DateTime.Now.Minute < ENDMIN) && (System.DateTime.Now.Hour == 23))
+        //while (System.DateTime.Now.Hour != ENDHOUR)
+        {
+            StartCreatures();
+            NextGeneration();
+            sa();
+            yield return null;
+        }
+    }
+
+    public void CreateCretures()
+    {
+        for (int i = 0; i < numberOfCreaturesPerGeneration; i++)
+        {
+            CreatureGA cga = new CreatureGA();
+            cga.ResetAll(i);
+            listOfCreatures.Add(cga);
+        }
+    }
+
+    public void CreateGenes(int numberOfGenesToAdd)
+    {
+        for (int i = 0; i < numberOfGenesToAdd; i++)
+        {
+            listOfGenes.Add(GenerateSingleGeneString());
+        }
+    }
+
+    public List<int> GenerateSingleGeneString()
+    {
+        List<int> newGene = new List<int>();
+        List<int> avalibleTreeIds = Enumerable.Range(1, numberOfTreesPerForest - 2).ToList();
+
+        int geneLength = Functions.randomInt(1, numberOfTreesPerForest - 1);
+
+        for (int i = 0; i < geneLength; i++)
+        {
+            int randomPick = Functions.randomInt(0, avalibleTreeIds.Count - 2);
+            int geneToAdd = avalibleTreeIds[randomPick];
+            avalibleTreeIds.RemoveAt(randomPick);
+            newGene.Add(geneToAdd);
+        }
+        return newGene;
+    }
+
+    public void StartCreatures()
+    {
+        for (int i = 0; i < numberOfCreaturesPerGeneration; i++)
+        {
+            listOfCreatures[i].Run();
+        }
+        //Renderer.DeleteAllRenders();
+        // for (int i = 0; i < numberOfCreaturesPerGeneration; i++)
+        // {
+        //     listOfCreatures[i].Render(nonBurningTree, burningTree, deadTree, i);
+        // }
+    }
+
+
+    public void NextGeneration()
+    {
+
+        for (int i = 0; i < numberOfCreaturesPerGeneration; i++)
+        {
+            CreatureGA creatureChecking = listOfCreatures[i];
+            creatureChecking.EvaluateFitness();
+            listOfCreatures[i] = creatureChecking;
+        }
+
+        listOfCreatures.Sort((s1, s2) => s1.fitnessEvaluationNumber.CompareTo(s2.fitnessEvaluationNumber));
+        Debug.Log("Lowest Fitness :: " + listOfCreatures[0].fitnessEvaluationNumber + " :: Generation :: " + generationNumber);
+
+        // Renderer.DeleteAllRenders();
+        // for (int i = 0; i < numberOfCreaturesPerGeneration; i++)
+        // {
+        //     listOfCreatures[i].Render(nonBurningTree, burningTree, deadTree, i);
+        // }
+
+        int halfOfTheNumberOfCreatures = (int)Mathf.Floor(numberOfCreaturesPerGeneration * 0.5f);
+        //int quaterOfTheNumberOfCreatures = (int)Mathf.Floor(numberOfCreaturesPerGeneration * 0.25f);
+        listOfCreatures.RemoveRange(halfOfTheNumberOfCreatures - 1, halfOfTheNumberOfCreatures);
+
+        listOfGenes.Clear();
+        for (int i = 0; i < halfOfTheNumberOfCreatures; i += 2)
+        {
+            listOfGenes.Add(new List<int>(listOfCreatures[i].treesToRemove));
+            listOfGenes.Add(new List<int>(listOfCreatures[i + 1].treesToRemove));
+            listOfGenes.Add(listOfCreatures[i].CreateGenesFromParent(listOfCreatures[i + 1].treesToRemove));
+            listOfGenes.Add(GenerateSingleGeneString());
+        }
+
+        listOfCreatures.Clear();
+        CreateCretures();
+        generationNumber++;
+    }
+
+    public void ls()
+    {
+        loading = true;
+        DataRecorder.CreateBest(nonBurningTree, burningTree, deadTree, lst);
+    }
+
+    public void sa()
+    {
+        DataRecorder.CreateSave(listOfGenes[0], seed);
+    }
+
+    public void del()
+    {
+        Renderer.DeleteAllRenders();
+    }
+}
