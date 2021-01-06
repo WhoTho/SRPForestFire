@@ -1,0 +1,61 @@
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using System.IO;
+using System.Linq;
+using System;
+
+public static class DataRecorder
+{
+    private const string path = "Assets/save.txt";
+    private const string STRINGSEPARATOR = "-";
+
+    public static void CreateSave(List<int> geneData, int seed)
+    {
+        string dataToAdd = string.Join(STRINGSEPARATOR, geneData.Select(x => x.ToString()).ToArray());
+        string seedToAdd = seed + STRINGSEPARATOR;
+        File.AppendAllText(path, seedToAdd + dataToAdd + Environment.NewLine);
+    }
+
+    public static List<List<int>> LoadSave(int saveLine)
+    {
+        string[] lines = System.IO.File.ReadAllLines(path);
+        string[] loadedSaveLine = lines[saveLine].Split(new[] { STRINGSEPARATOR }, System.StringSplitOptions.None);
+
+        List<List<int>> toLoad = new List<List<int>>();
+        List<int> temp = new List<int>();
+        temp.Add(int.Parse(loadedSaveLine[0]));
+        toLoad.Add(new List<int>(temp));
+        temp.Clear();
+        for (int i = 1; i < loadedSaveLine.Length; i++)
+        {
+            temp.Add(int.Parse(loadedSaveLine[i]));
+        }
+        toLoad.Add(new List<int>(temp));
+        return toLoad;
+    }
+
+    public static void CreateBest(Material nonBurningTree, Material burningTree, Material deadTree, int saveLine)
+    {
+        List<List<int>> save = LoadSave(saveLine);
+        int seed = save[0][0];
+        // UnityEngine.Random.InitState(0);
+        // Debug.Log(UnityEngine.Random.value);
+        // UnityEngine.Random.InitState(seed);
+        // Debug.Log(UnityEngine.Random.value);
+        ForestFire forestFire = new ForestFire();
+        forestFire.ResetAll(MitigationGA.numberOfTreesPerForest, seed);
+        forestFire.RandomizeWind();
+        foreach (int treeId in save[1])
+        {
+            Tree treeBeingChecked = forestFire.listOfTrees[treeId];
+            treeBeingChecked.dead = true;
+            forestFire.listOfTrees[treeId] = treeBeingChecked;
+        }
+        forestFire.StartBurn();
+        Renderer.DeleteAllRenders();
+        Renderer.RenderAllTrees(forestFire, nonBurningTree, burningTree, deadTree, new Vector2(0, 200));
+        forestFire.RunSimulation();
+        Renderer.RenderAllTrees(forestFire, nonBurningTree, burningTree, deadTree, new Vector2(200, 200));
+    }
+}
