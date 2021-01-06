@@ -1,0 +1,129 @@
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using System;
+using System.Runtime.Serialization.Formatters.Binary;
+using System.IO;
+
+[System.Serializable]
+public struct CreatureGA
+{
+    public List<ForestFire> listOfForestFires;
+    public List<int> treesToRemove;
+    public int creatureId;
+    public ForestFire startingForestFire;
+    public float fitnessEvaluationNumber;
+
+    public void ResetAll(int id)
+    {
+        listOfForestFires = new List<ForestFire>();
+        this.creatureId = id;
+        this.treesToRemove = new List<int>(MitigationGA.listOfGenes[id]);
+        this.fitnessEvaluationNumber = 0;
+
+        this.startingForestFire = DeepCopy(MitigationGA.forestFire);
+        startingForestFire.creatureId = this.creatureId;
+        foreach (int treeId in treesToRemove)
+        {
+            Tree treeBeingChecked = startingForestFire.listOfTrees[treeId];
+            treeBeingChecked.dead = true;
+            startingForestFire.listOfTrees[treeId] = treeBeingChecked;
+        }
+
+        for (int i = 0; i < MitigationGA.forestFiresPerCreature; i++)
+        {
+            ForestFire ff = DeepCopy(startingForestFire);
+            ff.id = i;
+            ff.RandomizeWind();
+            ff.StartBurn();
+            this.listOfForestFires.Add(ff);
+        }
+    }
+
+    public void Run()
+    {
+        for (int i = 0; i < MitigationGA.forestFiresPerCreature; i++)
+        {
+            ForestFire forestFireRunning = this.listOfForestFires[i];
+            forestFireRunning.RunSimulation();
+        }
+    }
+
+    public void Render(Material nonBurningTree, Material burningTree, Material deadTree, int id)
+    {
+        int distanceBetween = (int)Mathf.Round(MitigationGA.forestFireSize * 1.5f);
+        int rendersPerLine = (int)Mathf.Floor(Mathf.Sqrt(MitigationGA.forestFiresPerCreature));
+        for (int y = 0; y < rendersPerLine; y++)
+        {
+            for (int x = 0; x < rendersPerLine; x++)
+            {
+                Vector2 displacement = new Vector2(x * distanceBetween, y * distanceBetween);
+                displacement += new Vector2(id * distanceBetween * rendersPerLine, 0);
+                Renderer.RenderAllTrees(this.listOfForestFires[(y * rendersPerLine) + x], nonBurningTree, burningTree, deadTree, displacement);
+            }
+        }
+    }
+
+    public void EvaluateFitness()
+    {
+        fitnessEvaluationNumber = 0;
+        for (int i = 0; i < this.listOfForestFires.Count; i++)
+        {
+            //FITNESS FUNCTION
+            fitnessEvaluationNumber += MitigationGA.numberOfTreesPerForest - (this.listOfForestFires[i].listOfAliveTreesIds.Count);
+            //fitnessEvaluationNumber += this.treesToRemove.Count;
+        }
+    }
+
+    public List<int> CreateGenesFromParent(List<int> parent)
+    {
+        List<int> x = new List<int>(this.treesToRemove);
+        List<int> y = new List<int>(parent);
+        List<int> z = new List<int>();
+
+        int geneLength = (Functions.randomInt(1, 2) == 1 ? x.Count : y.Count);
+        for (int i = 0; i < MitigationGA.mutationRepetition; i++)
+        {
+            geneLength += (Functions.randomInt(1, MitigationGA.mutationRate) == 1 ? (Functions.randomInt(1, 2) == 1 ? -1 : 1) : 0);
+        }
+
+        geneLength = Mathf.Clamp(geneLength, 1, MitigationGA.numberOfTreesPerForest - 1);
+
+        for (int i = 0; i < geneLength; i++)
+        {
+            int geneToAdd;
+            if (x.Count != 0 && y.Count != 0)
+            {
+                if (Functions.randomInt(1, 2) == 1)
+                {
+                    geneToAdd = x[Functions.randomInt(0, x.Count - 1)];
+                }
+                else
+                {
+                    geneToAdd = y[Functions.randomInt(0, y.Count - 1)];
+                }
+                x.Remove(geneToAdd);
+                y.Remove(geneToAdd);
+
+                z.Add(geneToAdd);
+            }
+            else
+            {
+                break;
+            }
+        }
+        return z;
+
+    }
+
+    public static T DeepCopy<T>(T item)
+    {
+        BinaryFormatter formatter = new BinaryFormatter();
+        MemoryStream stream = new MemoryStream();
+        formatter.Serialize(stream, item);
+        stream.Seek(0, SeekOrigin.Begin);
+        T result = (T)formatter.Deserialize(stream);
+        stream.Close();
+        return result;
+    }
+}
